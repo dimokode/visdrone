@@ -238,7 +238,15 @@ document.getElementById("selectAllModels").onchange = e => {
 };
 
 
-function initModelProgress(files, models) {
+async function initModelProgress(files, models) {
+    const models_index = await fetch('/get_models_index', {
+                    method: "POST",
+                })
+                .then(r => r.json())
+                .then(data => {
+                    return data
+                });
+
     files.forEach(file => {
         const container = document.getElementById(`models-${file}`);
         container.innerHTML = "";
@@ -249,7 +257,7 @@ function initModelProgress(files, models) {
 
             const name = document.createElement("span");
             name.className = "model-name";
-            name.textContent = model;
+            name.textContent = models_index[model];
 
             const bar = document.createElement("div");
             bar.className = "progress-bar";
