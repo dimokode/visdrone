@@ -14,9 +14,24 @@ from SSD.model_v1 import VisDroneSSD
 from SSD.model_v2 import VisDroneSSD2
 
 from utils.patch import download_weights
+from utils.utils import count_files_in_directory
 
 
+progress = {}
 
+app = Flask(__name__)
+
+app.static_folder = ''
+
+ALLOWED_EXT = ('jpg', 'mp4')
+UPLOAD_FOLDER = "uploads"
+RESULT_FOLDER = "results"
+WEIGHTS_FOLDER = "weights"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULT_FOLDER, exist_ok=True)
+
+if count_files_in_directory(WEIGHTS_FOLDER) == 0:
+    download_weights()
 
 # Регистрация моделей
 ModelRegistry.register(
@@ -61,17 +76,6 @@ ModelRegistry.register(
     )
 )
 
-progress = {}
-
-app = Flask(__name__)
-
-app.static_folder = ''
-
-ALLOWED_EXT = ('jpg', 'mp4')
-UPLOAD_FOLDER = "uploads"
-RESULT_FOLDER = "results"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
 
 def is_video(filename):
     return filename.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
