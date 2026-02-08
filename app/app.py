@@ -21,6 +21,8 @@ from utils.visualize import draw_detections
 from SSD.model_v1 import VisDroneSSD
 from SSD.model_v2 import VisDroneSSD2
 
+from utils.patch import download_weights
+
 
 
 
@@ -103,6 +105,18 @@ def run_video_inference(model, video_path):
     cap.release()
     return results, fps
 
+
+@app.route('/patch')
+def patch():
+    try:
+        download_weights()
+        return jsonify({
+            'msg': 'weights are successfully downloaded'
+        })
+    except Exception:
+        return jsonify({
+            'msg': 'Error by weigths downloading'
+        })
 
 @app.route('/results/<path:filename>')
 def results(filename):
