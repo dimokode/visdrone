@@ -21,6 +21,9 @@ from utils.visualize import draw_detections
 from SSD.model_v1 import VisDroneSSD
 from SSD.model_v2 import VisDroneSSD2
 
+
+
+
 # Регистрация моделей
 ModelRegistry.register(
     UltralyticsYoloModel(
@@ -148,7 +151,10 @@ def get_models():
         "models": models
     })
 
-
+@app.route("/get_models_index", methods=["POST"])
+def get_models_index():
+    models = {model.id: model.name for model in ModelRegistry.list()}
+    return jsonify(models)
 
 @app.route("/results/<image_name>/list")
 def list_image_results(image_name):

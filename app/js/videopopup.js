@@ -44,10 +44,18 @@ function buildClassFiltersForVideo(frames) {
     });
 }
 
-function openVideoInCanvas(file, modelId) {
+async function openVideoInCanvas(file, modelId) {
     // очищаем старое
     modelSelectPopup.innerHTML = "";
     modalClassFilters.innerHTML = "";
+
+    const models_index = await fetch('/get_models_index', {
+                        method: "POST",
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        return data
+                    });
     
     stopVideo();
 
@@ -73,7 +81,7 @@ function openVideoInCanvas(file, modelId) {
             models.forEach(m => {
                 const opt = document.createElement("option");
                 opt.value = m;
-                opt.textContent = m;
+                opt.textContent = models_index[m];
                 if(m==modelId){
                     opt.selected = true;
                 }

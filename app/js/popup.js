@@ -12,9 +12,19 @@ let popupImage = new Image();
 let popupDetections = [];
 
 
+
+
 async function openImageInCanvas(imageName) {
     modal.style.display = "block";
     modalTitle.textContent = imageName;
+
+    const models_index = await fetch('/get_models_index', {
+                        method: "POST",
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        return data
+                    });
 
     const models = await get_models_for_file(imageName);
     console.log(models);
@@ -27,7 +37,7 @@ async function openImageInCanvas(imageName) {
     models.forEach(m => {
         const opt = document.createElement("option");
         opt.value = m;
-        opt.textContent = m;
+        opt.textContent = models_index[m];
         modelSelectPopup.appendChild(opt);
     });
 
@@ -64,7 +74,6 @@ function loadPopupResult(imageName, modelId) {
                 popupImage.src = `/uploads/${imageName}?t=` + Date.now();
             });
     }else{
-        console.log('22', popupCanvas.width, popupCanvas.height)
         popupImage.onload = () => {
             popupCanvas.width = popupImage.width;
             popupCanvas.height = popupImage.height;
