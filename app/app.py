@@ -1,17 +1,9 @@
-from time import sleep
-import time
+import os
 import json
-
 import cv2
 
 from flask import Flask, render_template, request, jsonify, send_file, Response
 
-from ultralytics import YOLO
-import os
-import json
-from pathlib import Path
-import cv2
-import uuid
 
 from models.registry import ModelRegistry
 from models.yolo_ultralytics import UltralyticsYoloModel
