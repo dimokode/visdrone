@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Object Detection</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/popup.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/progress.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/videopopup.css') }}">
+    <script src="{{ url_for('static', filename='js/test.js') }}" defer></script>
+</head>
+
+<body>
+    <h2>Object Detection</h2>
+
+    <!-- <select id="modelSelect">
+        {% for model in models %}
+            <option value="{{ model.id }}">{{ model.name }}</option>
+        {% endfor %}
+    </select> -->
+    
+    <div class="container-vertical">
+        <div id="dropZone" class="drop-zone">
+            Перетащите изображение сюда
+        </div>
+
+        <input type="file" id="fileInput" hidden multiple>
+        
+        <progress id="uploadProgress" value="0" max="100"></progress>
+    </div>
+
+
+    <div class="container-horizontal">
+
+        <div class="block">
+            <h2>Модели для детекции</h2>
+            <label>
+                <input type="checkbox" id="selectAllModels">
+                Select all
+            </label>
+            <div id="modelList">
+            <!-- {% for model in models %}
+                <label>
+                <input type="checkbox" value="{{ model.id }}">
+                {{ model.name }}
+                </label><br>
+            {% endfor %} -->
+            </div>
+        </div>
+
+
+        <div class="block">
+        <!-- <button onclick="test()">Test</button> -->
+        <!-- <button onclick="deleteFiles()">Delete</button> -->
+        <button onclick="startProcessing()">Обработка</button>
+
+
+            <h2>Filelist:</h2>
+            <div class="progress-section">
+                <div class="progress-label">Общий прогресс</div>
+                <div class="progress-bar">
+                    <div id="globalProgress" class="progress-fill">0%</div>
+                </div>
+            </div>
+            
+            <label>
+                <input type="checkbox" id="selectAllFiles">
+                Select all
+            </label>
+
+            <div id="fileList"></div>
+        </div>
+
+        <!-- <button onclick="runInference()">Обработка</button> -->
+        <!-- <progress id="inferProgress" value="0" max="100"></progress> -->
+
+
+
+
+    </div>
+
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span id="modalClose">&times;</span>
+            <h3 id="modalTitle"></h3>
+            
+            <div class="content-row">
+                <div class="left-column">
+                    <select id="modelSelectPopup"></select>
+                    <div id="classFilters"></div>
+                </div>
+                <div class="right-column">
+                    <canvas id="popupCanvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <script src="{{ url_for('static', filename='js/utils.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/popup.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/videopopup.js') }}" defer></script>
+
+
+    <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // alert("DOM готов!");
+            showModels();
+            showFiles();
+        });
+    </script>
+</body>
+</html>

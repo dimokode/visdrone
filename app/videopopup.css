@@ -1,0 +1,20 @@
+.popup-content {
+  position: relative;
+}
+
+#videoPlayer,
+#videoCanvas {
+  max-width: 100%;
+  display: block;
+}
+
+#videoCanvas {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.hidden {
+  display: none;
+}

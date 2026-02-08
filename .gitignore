@@ -1,0 +1,15 @@
+__pycache__
+.DS_Store
+
+*.pt
+*.pth
+
+dataset/
+/models/
+runs/
+samples/
+temp/
+
+uploads/
+results/
+weights/
