@@ -30,8 +30,14 @@ WEIGHTS_FOLDER = "weights"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
 
-if count_files_in_directory(WEIGHTS_FOLDER) == 0:
+if not os.path.exists(WEIGHTS_FOLDER):
+    print("Folder 'weights' doesn't exist")
+    os.makedirs(WEIGHTS_FOLDER, exist_ok=True)
     download_weights()
+
+
+# if count_files_in_directory(WEIGHTS_FOLDER) == 0:
+#     download_weights()
 
 # Регистрация моделей
 ModelRegistry.register(

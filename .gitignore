@@ -1,15 +1,16 @@
 __pycache__
 .DS_Store
+.venv
+.devcontainer
 
 *.pt
 *.pth
 
 dataset/
-/models/
 runs/
 samples/
 temp/
 
 uploads/
 results/
-# weights/
+weights/
