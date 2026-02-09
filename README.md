@@ -39,7 +39,15 @@ pip install -r requirements.txt
 Скачивание обычно выполняется неско минут.
 
 
+Developer mode
 ```bash
 python app.py
+```
+
+или
+
+Production mode
+```
+gunicorn --bind 0.0.0.0:5000 app:app
 ```
 Сервер будет доступен по адресу: ``http://127.0.0.1:5000``
