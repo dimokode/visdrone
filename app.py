@@ -233,7 +233,7 @@ def run_inference_sse():
 
                         model_progress = (frame_idx + 1) / total_frames
 
-                        yield f"data: {json.dumps({
+                        progress_data = json.dumps({
                             "type": "progress",
                             "file": file,
                             "model": model_id,
@@ -242,7 +242,9 @@ def run_inference_sse():
                             "model_progress": round(model_progress, 4),
 
                             "progress": round(done_units / total_units, 4)
-                        })}\n\n"
+                        })
+
+                        yield f"data: {progress_data}\n\n"
 
                         frame_idx += 1
 
@@ -262,13 +264,15 @@ def run_inference_sse():
                     # файл для модели ЗАВЕРШЁН
                     done_units += 1
 
-                    yield f"data: {json.dumps({
+                    progress_data = json.dumps({
                         "type": "progress",
                         "file": file,
                         "model": model_id,
                         "model_progress": 1.0,
                         "progress": round(done_units / total_units, 4)
-                    })}\n\n"
+                    })
+
+                    yield f"data: {progress_data}\n\n"
 
                 # ---------- IMAGE ----------
                 else:
@@ -286,13 +290,15 @@ def run_inference_sse():
 
                     done_units += 1
 
-                    yield f"data: {json.dumps({
+                    progress_data = json.dumps({
                         "type": "progress",
                         "file": file,
                         "model": model_id,
                         "model_progress": 1.0,
                         "progress": round(done_units / total_units, 4)
-                    })}\n\n"
+                    })
+
+                    yield f"data: {progress_data}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
