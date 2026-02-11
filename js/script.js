@@ -238,42 +238,42 @@ document.getElementById("selectAllModels").onchange = e => {
 };
 
 
-async function initModelProgress(files, models) {
-    const models_index = await fetch('/get_models_index', {
-                    method: "POST",
-                })
-                .then(r => r.json())
-                .then(data => {
-                    return data
-                });
+// async function initModelProgress(files, models) {
+//     const models_index = await fetch('/get_models_index', {
+//                     method: "POST",
+//                 })
+//                 .then(r => r.json())
+//                 .then(data => {
+//                     return data
+//                 });
 
-    files.forEach(file => {
-        const container = document.getElementById(`models-${file}`);
-        container.innerHTML = "";
+//     files.forEach(file => {
+//         const container = document.getElementById(`models-${file}`);
+//         container.innerHTML = "";
 
-        models.forEach(model => {
-            const row = document.createElement("div");
-            row.className = "model-progress";
+//         models.forEach(model => {
+//             const row = document.createElement("div");
+//             row.className = "model-progress";
 
-            const name = document.createElement("span");
-            name.className = "model-name";
-            name.textContent = models_index[model];
+//             const name = document.createElement("span");
+//             name.className = "model-name";
+//             name.textContent = models_index[model];
 
-            const bar = document.createElement("div");
-            bar.className = "progress-bar";
+//             const bar = document.createElement("div");
+//             bar.className = "progress-bar";
 
-            const fill = document.createElement("div");
-            fill.className = "progress-fill";
-            fill.id = `pb-${file}-${model}`;
+//             const fill = document.createElement("div");
+//             fill.className = "progress-fill";
+//             fill.id = `pb-${file}-${model}`;
 
-            bar.appendChild(fill);
-            row.appendChild(name);
-            row.appendChild(bar);
+//             bar.appendChild(fill);
+//             row.appendChild(name);
+//             row.appendChild(bar);
 
-            container.appendChild(row);
-        });
-    });
-}
+//             container.appendChild(row);
+//         });
+//     });
+// }
 
 
 function updateFileModelProgress(file, model, progress) {
@@ -292,101 +292,101 @@ function updateFileModelProgress(file, model, progress) {
 }
 
 
-function initProgressUI(images, models) {
-    const container = document.getElementById("fileProgressContainer");
-    container.innerHTML = "";
+// function initProgressUI(images, models) {
+//     const container = document.getElementById("fileProgressContainer");
+//     container.innerHTML = "";
 
-    images.forEach(img => {
-        const fileDiv = document.createElement("div");
-        fileDiv.className = "file-progress";
-        fileDiv.id = `fp-${img}`;
+//     images.forEach(img => {
+//         const fileDiv = document.createElement("div");
+//         fileDiv.className = "file-progress";
+//         fileDiv.id = `fp-${img}`;
 
-        const title = document.createElement("div");
-        title.className = "file-title";
-        title.textContent = img;
+//         const title = document.createElement("div");
+//         title.className = "file-title";
+//         title.textContent = img;
 
-        fileDiv.appendChild(title);
+//         fileDiv.appendChild(title);
 
-        models.forEach(model => {
-            const row = document.createElement("div");
-            row.className = "model-progress";
+//         models.forEach(model => {
+//             const row = document.createElement("div");
+//             row.className = "model-progress";
 
-            const name = document.createElement("span");
-            name.className = "model-name";
-            name.textContent = model;
+//             const name = document.createElement("span");
+//             name.className = "model-name";
+//             name.textContent = model;
 
-            const bar = document.createElement("div");
-            bar.className = "progress-bar small";
+//             const bar = document.createElement("div");
+//             bar.className = "progress-bar small";
 
-            const fill = document.createElement("div");
-            fill.className = "progress-fill";
-            fill.id = `pb-${img}-${model}`;
+//             const fill = document.createElement("div");
+//             fill.className = "progress-fill";
+//             fill.id = `pb-${img}-${model}`;
 
-            bar.appendChild(fill);
-            row.appendChild(name);
-            row.appendChild(bar);
-            fileDiv.appendChild(row);
-        });
+//             bar.appendChild(fill);
+//             row.appendChild(name);
+//             row.appendChild(bar);
+//             fileDiv.appendChild(row);
+//         });
 
-        container.appendChild(fileDiv);
-    });
-}
-
-
-function startProcessing(){
-    const files = Array.from(selectedFiles);
-    const models = Array.from(selectedModels);
-
-    if (!files.length || !models.length) {
-        alert("Выбери файлы и модели");
-        return;
-    }
-
-    initModelProgress(files, models);
-
-    const params = new URLSearchParams();
-    files.forEach(f => params.append("images", f));
-    models.forEach(m => params.append("models", m));
-
-    const es = new EventSource(`/run_inference_sse?${params.toString()}`);
-
-    es.onmessage = e => {
-        const data = JSON.parse(e.data);
-        console.log(data)
-
-        if (data.type === "progress") {
-            updateGlobalProgress(data.progress);
-
-            updateFileModelProgress(
-                data.file,
-                data.model,
-                data.model_progress,
-                data.model_done,
-                data.model_total
-            );
-
-        }
-
-        if (data.type === "done") {
-            es.close();
-            console.log("Done");
-        }
-    };
-};
+//         container.appendChild(fileDiv);
+//     });
+// }
 
 
-function updateGlobalProgress(p) {
-    const bar = document.getElementById("globalProgress");
-    const percent = Math.round(p * 100);
-    bar.style.width = percent + "%";
-    bar.textContent = percent + "%";
-}
+// function startProcessing(){
+//     const files = Array.from(selectedFiles);
+//     const models = Array.from(selectedModels);
+
+//     if (!files.length || !models.length) {
+//         alert("Выбери файлы и модели");
+//         return;
+//     }
+
+//     initModelProgress(files, models);
+
+//     const params = new URLSearchParams();
+//     files.forEach(f => params.append("images", f));
+//     models.forEach(m => params.append("models", m));
+
+//     const es = new EventSource(`/run_inference_sse?${params.toString()}`);
+
+//     es.onmessage = e => {
+//         const data = JSON.parse(e.data);
+//         console.log(data)
+
+//         if (data.type === "progress") {
+//             updateGlobalProgress(data.progress);
+
+//             updateFileModelProgress(
+//                 data.file,
+//                 data.model,
+//                 data.model_progress,
+//                 data.model_done,
+//                 data.model_total
+//             );
+
+//         }
+
+//         if (data.type === "done") {
+//             es.close();
+//             console.log("Done");
+//         }
+//     };
+// };
 
 
-function updateFileProgress(image, model) {
-    const bar = document.getElementById(`pb-${image}-${model}`);
-    if (!bar) return;
+// function updateGlobalProgress(p) {
+//     const bar = document.getElementById("globalProgress");
+//     const percent = Math.round(p * 100);
+//     bar.style.width = percent + "%";
+//     bar.textContent = percent + "%";
+// }
 
-    bar.style.width = "100%";
-    bar.textContent = "✓";
-}
+
+// function updateFileProgress(image, model) {
+//     const bar = document.getElementById(`pb-${image}-${model}`);
+//     if (!bar) return;
+
+//     bar.style.width = "100%";
+//     bar.textContent = "✓";
+// }

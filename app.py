@@ -1,6 +1,7 @@
 import os
 import json
 import cv2
+import time
 
 from flask import Flask, render_template, request, jsonify, send_file, Response
 
@@ -13,8 +14,21 @@ from utils.visualize import draw_detections
 from SSD.model_v1 import VisDroneSSD
 from SSD.model_v2 import VisDroneSSD2
 
-from utils.patch import download_weights
-from utils.utils import count_files_in_directory
+# from utils.utils import count_files_in_directory
+
+from config import UPLOAD_FOLDER, ALLOWED_EXT, DB_NAME
+
+import threading
+from app.queue_worker import worker_loop, clear_all_tasks
+from app.queue_storage import get_task, init_db, enqueue_task
+
+if not os.path.exists(DB_NAME):
+    init_db()
+
+threading.Thread(
+    target=worker_loop,
+    daemon=True
+).start()
 
 
 progress = {}
@@ -23,21 +37,6 @@ app = Flask(__name__)
 
 app.static_folder = ''
 
-ALLOWED_EXT = ('jpg', 'mp4')
-UPLOAD_FOLDER = "uploads"
-RESULT_FOLDER = "results"
-WEIGHTS_FOLDER = "weights"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(RESULT_FOLDER, exist_ok=True)
-
-if not os.path.exists(WEIGHTS_FOLDER):
-    print("Folder 'weights' doesn't exist")
-    os.makedirs(WEIGHTS_FOLDER, exist_ok=True)
-    download_weights()
-
-
-# if count_files_in_directory(WEIGHTS_FOLDER) == 0:
-#     download_weights()
 
 # Регистрация моделей
 ModelRegistry.register(
@@ -64,27 +63,27 @@ ModelRegistry.register(
     )
 )
 
-ModelRegistry.register(
-    CustomTorchModel(
-        model = VisDroneSSD,
-        model_id="SSD",
-        name="My SSD",
-        model_path="weights/best_ssd7_1024_big.pth"
-    )
-)
+# ModelRegistry.register(
+#     CustomTorchModel(
+#         model = VisDroneSSD,
+#         model_id="SSD",
+#         name="My SSD",
+#         model_path="weights/best_ssd7_1024_big.pth"
+#     )
+# )
 
-ModelRegistry.register(
-    CustomTorchModel(
-        model=VisDroneSSD2,
-        model_id="ssd8_1024_big",
-        name="My SSD img_size=1024",
-        model_path="weights/ssd8_1024_big.pth"
-    )
-)
+# ModelRegistry.register(
+#     CustomTorchModel(
+#         model=VisDroneSSD2,
+#         model_id="ssd8_1024_big",
+#         name="My SSD img_size=1024",
+#         model_path="weights/ssd8_1024_big.pth"
+#     )
+# )
 
 
-def is_video(filename):
-    return filename.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
+# def is_video(filename):
+#     return filename.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
 
 
 def run_video_inference(model, video_path):
@@ -107,18 +106,6 @@ def run_video_inference(model, video_path):
     cap.release()
     return results, fps
 
-
-@app.route('/patch')
-def patch():
-    try:
-        download_weights()
-        return jsonify({
-            'msg': 'weights are successfully downloaded'
-        })
-    except Exception:
-        return jsonify({
-            'msg': 'Error by weigths downloading'
-        })
 
 @app.route('/results/<path:filename>')
 def results(filename):
@@ -159,6 +146,47 @@ def get_files():
         "files": filenames
     })
 
+@app.route("/clear_queue", methods=["POST"])
+def clear_queue():
+    return jsonify(
+        clear_all_tasks()
+    )
+
+
+@app.route("/enqueue_task", methods=["POST"])
+def enqueue():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    file = data.get("file")
+    model = data.get("model")
+
+    if not file or not model:
+        return jsonify({"error": "file and model required"}), 400
+
+    # 🔒 Проверяем, что файл существует
+    file_path = os.path.join(UPLOAD_FOLDER, file)
+    if not os.path.exists(file_path):
+        return jsonify({"error": "File not found"}), 404
+
+    # 🔒 Проверяем, что модель существует
+    try:
+        ModelRegistry.get(model)
+    except Exception:
+        return jsonify({"error": "Model not found"}), 404
+
+    # 🧠 Создаём задачу
+    task_id = enqueue_task(file, model)
+
+    return jsonify({
+        "task_id": task_id,
+        "file": file,
+        "model": model,
+        "status": "queued"
+    })
+
 
 @app.route("/get_models", methods=["POST"])
 def get_models():
@@ -195,121 +223,164 @@ def get_image_result(image_name, model_id):
 
 @app.route("/run_inference_sse")
 def run_inference_sse():
-    files = request.args.getlist("images")
-    model_ids = request.args.getlist("models")
+    task_id = request.args["task"]
 
-    upload_dir = UPLOAD_FOLDER
+    def stream():
+        last = None
+        while True:
+            task = get_task(task_id)
+            print("task", task)
+            if not task:
+                break
 
-    def generate():
-        # глобальный прогресс = file × model
-        total_units = len(files) * len(model_ids)
-        done_units = 0
+            if task != last:
+                yield f"data: {json.dumps(task)}\n\n"
+                last = task
 
-        # основной инференс
-        for file in files:
-            path = os.path.join(upload_dir, file)
-            result_dir = os.path.join("results", file)
-            os.makedirs(result_dir, exist_ok=True)
+            if task["status"] in ("done", "stopped"):
+                yield f"data: {json.dumps({'type':'done'})}\n\n"
+                break
 
-            for model_id in model_ids:
-                model = ModelRegistry.get(model_id)
+            time.sleep(0.5)
 
-                # ---------- VIDEO ----------
-                if is_video(file):
-                    cap = cv2.VideoCapture(path)
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    fps = cap.get(cv2.CAP_PROP_FPS)
+    return Response(stream(), mimetype="text/event-stream")
 
-                    frame_idx = 0
-                    frames_result = {}
 
-                    while cap.isOpened():
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
 
-                        detections = model.predict(frame)
-                        frames_result[str(frame_idx)] = detections
 
-                        model_progress = (frame_idx + 1) / total_frames
 
-                        progress_data = json.dumps({
-                            "type": "progress",
-                            "file": file,
-                            "model": model_id,
-                            "frame": frame_idx,
+# @app.post("/stop_task/<task_id>")
+# def stop_task(task_id):
+#     set_task_status(task_id, "stopped")
+#     return {"ok": True}
 
-                            "model_progress": round(model_progress, 4),
 
-                            "progress": round(done_units / total_units, 4)
-                        })
 
-                        yield f"data: {progress_data}\n\n"
 
-                        frame_idx += 1
+# @app.route("/run_inference_sse")
+# def run_inference_sse():
+#     files = request.args.getlist("images")
+#     model_ids = request.args.getlist("models")
 
-                    cap.release()
+#     upload_dir = UPLOAD_FOLDER
 
-                    # сохранение видео-детекций
-                    result_path = os.path.join(result_dir, f"{model_id}.json")
-                    with open(result_path, "w") as f:
-                        json.dump({
-                            "media_type": "video",
-                            "file": file,
-                            "model_id": model_id,
-                            "fps": fps,
-                            "frames": frames_result
-                        }, f, indent=2)
+#     def generate():
+#         # глобальный прогресс = file × model
+#         total_units = len(files) * len(model_ids)
+#         done_units = 0
 
-                    # файл для модели ЗАВЕРШЁН
-                    done_units += 1
+#         # основной инференс
+#         for file in files:
+#             path = os.path.join(upload_dir, file)
+#             result_dir = os.path.join("results", file)
+#             os.makedirs(result_dir, exist_ok=True)
 
-                    progress_data = json.dumps({
-                        "type": "progress",
-                        "file": file,
-                        "model": model_id,
-                        "model_progress": 1.0,
-                        "progress": round(done_units / total_units, 4)
-                    })
+#             for model_id in model_ids:
+#                 model = ModelRegistry.get(model_id)
 
-                    yield f"data: {progress_data}\n\n"
+#                 # ---------- VIDEO ----------
+#                 if is_video(file):
+#                     cap = cv2.VideoCapture(path)
+#                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+#                     fps = cap.get(cv2.CAP_PROP_FPS)
 
-                # ---------- IMAGE ----------
-                else:
-                    detections = model.predict(path)
+#                     frame_idx = 0
+#                     frames_result = {}
 
-                    # сохранение image-детекций
-                    result_path = os.path.join(result_dir, f"{model_id}.json")
-                    with open(result_path, "w") as f:
-                        json.dump({
-                            "media_type": "image",
-                            "file": file,
-                            "model_id": model_id,
-                            "detections": detections
-                        }, f, indent=2)
+#                     while cap.isOpened():
+#                         ret, frame = cap.read()
+#                         if not ret:
+#                             break
 
-                    done_units += 1
+#                         detections = model.predict(frame)
+#                         frames_result[str(frame_idx)] = detections
 
-                    progress_data = json.dumps({
-                        "type": "progress",
-                        "file": file,
-                        "model": model_id,
-                        "model_progress": 1.0,
-                        "progress": round(done_units / total_units, 4)
-                    })
+#                         model_progress = (frame_idx + 1) / total_frames
 
-                    yield f"data: {progress_data}\n\n"
+#                         progress_data = json.dumps({
+#                             "type": "progress",
+#                             "file": file,
+#                             "model": model_id,
+#                             "frame": frame_idx,
 
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+#                             "model_progress": round(model_progress, 4),
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
-        }
-    )
+#                             "progress": round(done_units / total_units, 4)
+#                         })
+
+#                         yield f"data: {progress_data}\n\n"
+
+#                         frame_idx += 1
+
+#                     cap.release()
+
+#                     # сохранение видео-детекций
+#                     result_path = os.path.join(result_dir, f"{model_id}.json")
+#                     with open(result_path, "w") as f:
+#                         json.dump({
+#                             "media_type": "video",
+#                             "file": file,
+#                             "model_id": model_id,
+#                             "fps": fps,
+#                             "frames": frames_result
+#                         }, f, indent=2)
+
+#                     # файл для модели ЗАВЕРШЁН
+#                     done_units += 1
+
+#                     progress_data = json.dumps({
+#                         "type": "progress",
+#                         "file": file,
+#                         "model": model_id,
+#                         "model_progress": 1.0,
+#                         "progress": round(done_units / total_units, 4)
+#                     })
+
+#                     yield f"data: {progress_data}\n\n"
+
+#                 # ---------- IMAGE ----------
+#                 else:
+#                     detections = model.predict(path)
+
+#                     # сохранение image-детекций
+#                     result_path = os.path.join(result_dir, f"{model_id}.json")
+#                     with open(result_path, "w") as f:
+#                         json.dump({
+#                             "media_type": "image",
+#                             "file": file,
+#                             "model_id": model_id,
+#                             "detections": detections
+#                         }, f, indent=2)
+
+#                     done_units += 1
+
+#                     progress_data = json.dumps({
+#                         "type": "progress",
+#                         "file": file,
+#                         "model": model_id,
+#                         "model_progress": 1.0,
+#                         "progress": round(done_units / total_units, 4)
+#                     })
+
+#                     yield f"data: {progress_data}\n\n"
+
+#         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+#     return Response(
+#         generate(),
+#         mimetype="text/event-stream",
+#         headers={
+#             "Cache-Control": "no-cache",
+#             "X-Accel-Buffering": "no"
+#         }
+#     )
+
+
+
+
+
+
+
 
 
 @app.route("/")

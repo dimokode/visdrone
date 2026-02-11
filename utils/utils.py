@@ -8,3 +8,7 @@ def count_files_in_directory(path):
     files = [item for item in all_items if os.path.isfile(os.path.join(path, item))]
     
     return len(files)
+
+
+def is_video(filename):
+    return filename.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
