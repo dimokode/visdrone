@@ -7,94 +7,6 @@ from utils.utils import is_video
 from app.queue_storage import get_task, get_db
 
 
-
-
-# def worker_loop(executor):
-#     print("WORKER STARTED", os.getpid())
-
-#     while True:
-#         db = get_db()
-
-#         # row = db.execute("""
-#         #     SELECT id, file, model
-#         #     FROM tasks
-#         #     WHERE status='queued'
-#         #     AND file NOT IN (
-#         #         SELECT file FROM tasks WHERE status='running'
-#         #     )
-#         #     ORDER BY created_at
-#         #     LIMIT 1
-#         # """).fetchone()
-
-#         # row = db.execute("""
-#         #     SELECT id, file, model
-#         #     FROM tasks
-#         #     WHERE status='queued'
-#         #     AND file NOT IN (
-#         #         SELECT file FROM tasks WHERE status='running'
-#         #     )
-#         #     ORDER BY id
-#         #     LIMIT 1
-#         # """).fetchone()
-
-#         row = db.execute("""
-#             SELECT id, file, model
-#             FROM tasks
-#             WHERE status='queued'
-#             ORDER BY id
-#             LIMIT 1
-#         """).fetchone()
-
-#         if row:
-#             task_id, file, model_id = row
-
-#             executor.submit(run_task, task_id, file, model_id)
-
-#         time.sleep(0.5)
-
-#         db.close()
-
-
-# def worker_loop(executor):
-#     while True:
-#         db = get_db()
-
-#         row = db.execute("""
-#             SELECT id, file, model FROM tasks
-#             WHERE status='queued'
-#             ORDER BY created_at
-#             LIMIT 1
-#         """).fetchone()
-
-#         if not row:
-#             db.close()
-#             time.sleep(1)
-#             continue
-
-#         id, file, model = row
-
-#         task_id = id
-#         # file = file
-#         # model = model
-
-#         # атомарный захват
-#         updated = db.execute("""
-#             UPDATE tasks
-#             SET status='running'
-#             WHERE id=? AND status='queued'
-#         """, (task_id,))
-#         db.commit()
-
-#         if db.total_changes == 0:
-#             db.close()
-#             continue
-
-#         db.close()
-
-#         # process_task(task_id)
-#         executor.submit(run_task, task_id, file, model)
-
-
 def worker_loop():
     while True:
         db = get_db()
@@ -128,7 +40,6 @@ def worker_loop():
 
         print("START TASK:", task_id)
 
-        # 🔥 ВАЖНО — блокирующий вызов
         run_task(task_id, file, model)
 
 
@@ -150,45 +61,9 @@ def set_r_to_q():
         return False
 
 
-
-# def update_task_progress(task_id, progress, status=None):
-#     db = get_db()
-
-#     if status:
-#         db.execute("""
-#             UPDATE tasks
-#             SET progress=?, status=?, updated_at=datetime('now')
-#             WHERE id=?
-#         """, (progress, status, task_id))
-#     else:
-#         db.execute("""
-#             UPDATE tasks
-#             SET progress=?, updated_at=datetime('now')
-#             WHERE id=?
-#         """, (progress, task_id))
-
-#     db.commit()
-#     db.close()
-
-
-
 def run_task(task_id, file, model_id):
 
     db = get_db()
-
-    # db.execute(
-    #     "UPDATE tasks SET status='running' WHERE id=? AND status='queued'",
-    #     (task_id,)
-    # )
-    # db.commit()
-
-    # # db.close()
-    # # проверяем что реально изменили строку
-
-    # print('run_task', 'db.total_changes', db.total_changes)
-    # if db.total_changes == 0:
-    #     db.close()
-    #     return
 
     model = ModelRegistry.get(model_id)
     path = os.path.join(UPLOAD_FOLDER, file)

@@ -1,9 +1,4 @@
 let activeTasks = {}; 
-// key = `${file}__${model}`
-// value = { taskId, status, progress }
-
-// let taskEventSources = {};
-// window.taskEventSources = {};
 
 async function clear_queue() {
     fetch('/clear_queue', {
@@ -95,34 +90,6 @@ async function initModelProgress(files, models) {
     });
 }
 
-// async function createTask(file, model) {
-//     console.log('createTask', file, model);
-//     const res = await fetch("/enqueue_task", {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify({ file, model })
-//     });
-//     data = await res.json();
-//     console.log('res', data);
-    
-//     task_id = data['task_id'];
-    
-//     console.log('task_id', task_id);
-
-
-//     const key = `${file}__${model}`;
-
-//     activeTasks[key] = {
-//         taskId: task_id,
-//         file,
-//         model,
-//         progress: 0,
-//         status: "queued"
-//     };
-
-//     // startTaskSSE(task_id, file, model);
-// }
-
 async function createTask(file, model) {
     const res = await fetch("/enqueue_task", {
         method: "POST",
@@ -143,100 +110,6 @@ async function createTask(file, model) {
     };
 }
 
-
-
-// function startTaskSSE(taskId, file, model) {
-
-//     const key = `${file}__${model}`;
-//     console.log("Opening SSE for", key);
-
-
-//     window.taskEventSources = window.taskEventSources || {};
-
-//     if (window.taskEventSources[key]) {
-//         console.log(`Task Event with key ${key} found`);
-//         try{
-//             window.taskEventSources[key].close();
-//             delete window.taskEventSources[key];
-//             console.log(`Connection with key ${key} is successfully closed`);
-//         }catch(err){
-//             console.error(err.message);
-//         }
-//     }
-
-//     try{
-//         const es = new EventSource(`/run_inference_sse?task=${taskId}`);
-//         window.taskEventSources[key] = es;
-//         console.log(`New connection ${key} created`);
-//         console.log(es);
-//     }catch(err){
-//         console.error(err.message);
-//     }
-
-
-//     // es.onmessage = (e) => {
-//     window.taskEventSources[key].onmessage = (e) => {
-//         const data = JSON.parse(e.data);
-//         // console.log('startTaskSSE', data);
-
-//         if (data.type === "done") {
-//             window.taskEventSources[key].close();
-//             delete window.taskEventSources[key];
-            
-//             activeTasks[key].progress = 1.0;
-//             activeTasks[key].status = "done";
-
-//             updateFileModelProgress(file, model, 1.0);
-//             updateGlobalProgress();
-//             return;
-//         }
-        
-//         // защита от откатов
-//         // if (data.progress < activeTasks[key].progress) return;
-        
-//         activeTasks[key].progress = data.progress;
-//         activeTasks[key].status = data.status;
-
-//         updateFileModelProgress(file, model, data.progress);
-//         updateGlobalProgress();
-//     };
-// }
-
-
-// function startGlobalSSE() {
-//     const es = new EventSource("/tasks_stream");
-
-//     es.onmessage = (e) => {
-//         const data = JSON.parse(e.data);
-
-//         const key = `${data.file}__${data.model}`;
-
-//         if (!activeTasks[key]) {
-//             activeTasks[key] = {
-//                 taskId: data.id,
-//                 file: data.file,
-//                 model: data.model,
-//                 progress: 0,
-//                 status: data.status
-//             };
-//         }
-
-//         // защита от откатов
-//         if (data.progress <= activeTasks[key].progress && data.status !== "done") return;
-
-
-//         activeTasks[key].progress = data.progress;
-//         activeTasks[key].status = data.status;
-
-//         updateFileModelProgress(
-//             data.file,
-//             data.model,
-//             data.progress
-//         );
-
-//         updateGlobalProgress();
-//     };
-// }
 
 
 function startGlobalSSE() {
@@ -351,7 +224,6 @@ async function stopTask(file, model) {
 
 async function restoreTasks() {
     
-    // console.log('taskEventSources', window.taskEventSources);
 
     const models_index = await fetch('/get_models_index', {
                 method: "POST",

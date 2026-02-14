@@ -4,18 +4,11 @@ import cv2
 import time
 
 from flask import Flask, render_template, request, jsonify, send_file, Response
-from concurrent.futures import ThreadPoolExecutor
 import threading
 
 from models.registry import ModelRegistry
-# from models.yolo_ultralytics import UltralyticsYoloModel
-# from models.custom_torch import CustomTorchModel
+
 from utils.visualize import draw_detections
-
-# from SSD.model_v1 import VisDroneSSD
-# from SSD.model_v2 import VisDroneSSD2
-
-# from utils.utils import count_files_in_directory
 
 from config import UPLOAD_FOLDER, ALLOWED_EXT, DB_NAME
 
@@ -23,9 +16,6 @@ from app.queue_worker import worker_loop, clear_all_tasks, stop_task, list_tasks
 from app.queue_storage import get_task, init_db, enqueue_task, get_db
 from app.files import delete_files
 
-
-# MAX_WORKERS = 1
-# executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 
 progress = {}
@@ -89,7 +79,6 @@ def delete_files_with_results():
         return jsonify({"error": "No JSON body"}), 400
 
     files = data.get("files")
-    # print(files)
     result: dict = delete_files(files)
 
     return jsonify(result)
@@ -109,18 +98,18 @@ def enqueue():
     if not file or not model:
         return jsonify({"error": "file and model required"}), 400
 
-    # 🔒 Проверяем, что файл существует
+    # Проверяем, что файл существует
     file_path = os.path.join(UPLOAD_FOLDER, file)
     if not os.path.exists(file_path):
         return jsonify({"error": "File not found"}), 404
 
-    # 🔒 Проверяем, что модель существует
+    # Проверяем, что модель существует
     try:
         ModelRegistry.get(model)
     except Exception:
         return jsonify({"error": "Model not found"}), 404
 
-    # 🧠 Создаём задачу
+    # Создаём задачу
     task_id = enqueue_task(file, model)
 
     return jsonify({
@@ -130,50 +119,6 @@ def enqueue():
         "status": "queued"
     })
 
-
-
-# @app.route("/tasks_stream")
-# def tasks_stream():
-#     def generate():
-#         last_update = {}
-
-#         while True:
-#             db = get_db()
-#             rows = db.execute("""
-#                 SELECT id, file, model, progress, status, updated_at
-#                 FROM tasks
-#             """).fetchall()
-#             db.close()
-
-#             for row in rows:
-#                 task_id = row["id"]
-#                 updated_at = row["updated_at"]
-
-#                 # отправляем только если изменилось
-#                 if (
-#                     task_id not in last_update or
-#                     last_update[task_id] != updated_at
-#                 ):
-#                     last_update[task_id] = updated_at
-
-#                     yield f"data: {json.dumps({
-#                         "id": row["id"],
-#                         "file": row["file"],
-#                         "model": row["model"],
-#                         "progress": row["progress"],
-#                         "status": row["status"]
-#                     })}\n\n"
-
-#             time.sleep(0.5)
-
-#     return Response(
-#         generate(),
-#         mimetype="text/event-stream",
-#         headers={
-#             "Cache-Control": "no-cache",
-#             "X-Accel-Buffering": "no"
-#         }
-#     )
 
 
 @app.route("/tasks_stream")
@@ -254,33 +199,6 @@ def get_image_result(image_name, model_id):
     return send_file(path, mimetype="application/json")
 
 
-# @app.route("/run_inference_sse")
-# def run_inference_sse():
-#     task_id = request.args["task"]
-
-#     def stream():
-#         last = None
-#         while True:
-#             task = get_task(task_id)
-#             # print("task", task)
-#             if not task:
-#                 break
-
-#             if task != last:
-#                 yield f"data: {json.dumps(task)}\n\n"
-#                 last = task
-
-#             if task["status"] in ("done", "stopped"):
-#                 yield f"data: {json.dumps({'type':'done'})}\n\n"
-#                 break
-
-#             time.sleep(0.5)
-
-#     return Response(stream(), mimetype="text/event-stream")
-
-
-
-
 @app.post("/stop_task/<task_id>")
 def stop_task_post(task_id):
     response = stop_task(task_id)
@@ -335,18 +253,6 @@ def predict():
 
 if __name__ == "__main__":
     init_db()
-
-    # данная проверка необходима, чтобы worker запускался только в основном потоке при запуске app с флагом debug=True
-    # Запускает первый процесс (контроллер)
-    # Потом делает "Restarting with stat"
-    # Запускает второй процесс (реальный сервер)
-    # if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-    #     print("Starting worker in PID", os.getpid())
-    #     threading.Thread(
-    #         target=worker_loop,
-    #         args=(executor,),
-    #         daemon=True
-    #     ).start()
 
     if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         print("Starting worker in PID", os.getpid())
