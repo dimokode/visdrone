@@ -6,6 +6,8 @@ __pycache__
 *.pt
 *.pth
 *.db
+*.db-shm
+*.db-wal
 
 dataset/
 runs/
