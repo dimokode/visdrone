@@ -1,19 +1,3 @@
-# from ultralytics import YOLO
-# import cv2
-# from models.base import BaseDetectionModel
-
-# class UltralyticsYoloModel(BaseDetectionModel):
-#     def __init__(self, model_id, name, weights_path):
-#         self.id = model_id
-#         self.name = name
-#         self.model = YOLO(weights_path)
-
-#     def predict(self, image_path, output_path):
-#         results = self.model(image_path)
-#         annotated = results[0].plot()
-#         cv2.imwrite(output_path, annotated)
-
-
 from ultralytics import YOLO
 from models.base import BaseDetectionModel
 
@@ -25,7 +9,7 @@ class UltralyticsYoloModel(BaseDetectionModel):
         self.model = YOLO(weights_path)
 
     def predict(self, image_path):
-        results = self.model(image_path)[0]
+        results = self.model(image_path, verbose=False)[0]
 
         detections = []
         for box in results.boxes:

@@ -32,7 +32,10 @@ body {
     background-color: #f9f9f9;
 }
 
-.container-horizontal button,
+/* .container-horizontal button {
+
+} */
+
 .container-horizontal progress {
     flex-basis: 100%;
     margin-top: 15px;

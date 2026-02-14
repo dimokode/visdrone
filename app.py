@@ -4,31 +4,28 @@ import cv2
 import time
 
 from flask import Flask, render_template, request, jsonify, send_file, Response
-
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from models.registry import ModelRegistry
-from models.yolo_ultralytics import UltralyticsYoloModel
-from models.custom_torch import CustomTorchModel
+# from models.yolo_ultralytics import UltralyticsYoloModel
+# from models.custom_torch import CustomTorchModel
 from utils.visualize import draw_detections
 
-from SSD.model_v1 import VisDroneSSD
-from SSD.model_v2 import VisDroneSSD2
+# from SSD.model_v1 import VisDroneSSD
+# from SSD.model_v2 import VisDroneSSD2
 
 # from utils.utils import count_files_in_directory
 
 from config import UPLOAD_FOLDER, ALLOWED_EXT, DB_NAME
 
-import threading
-from app.queue_worker import worker_loop, clear_all_tasks
-from app.queue_storage import get_task, init_db, enqueue_task
+from app.queue_worker import worker_loop, clear_all_tasks, stop_task, list_tasks, set_r_to_q
+from app.queue_storage import get_task, init_db, enqueue_task, get_db
+from app.files import delete_files
 
-if not os.path.exists(DB_NAME):
-    init_db()
 
-threading.Thread(
-    target=worker_loop,
-    daemon=True
-).start()
+# MAX_WORKERS = 1
+# executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 
 progress = {}
@@ -36,76 +33,6 @@ progress = {}
 app = Flask(__name__)
 
 app.static_folder = ''
-
-
-# Регистрация моделей
-ModelRegistry.register(
-    UltralyticsYoloModel(
-        model_id="y8m_1024_7cls",
-        name="YOLOv8m img_size=1024 cls=7",
-        weights_path="weights/y8m_1024_7cls.pt"
-    )
-)
-
-ModelRegistry.register(
-    UltralyticsYoloModel(
-        model_id="yolov8n",
-        name="YOLOv8n original",
-        weights_path="weights/yolov8n.pt"
-    )
-)
-
-ModelRegistry.register(
-    UltralyticsYoloModel(
-        model_id="best_50",
-        name="YOLOv8m img_size=960 cls=7",
-        weights_path="weights/best_50.pt"
-    )
-)
-
-# ModelRegistry.register(
-#     CustomTorchModel(
-#         model = VisDroneSSD,
-#         model_id="SSD",
-#         name="My SSD",
-#         model_path="weights/best_ssd7_1024_big.pth"
-#     )
-# )
-
-# ModelRegistry.register(
-#     CustomTorchModel(
-#         model=VisDroneSSD2,
-#         model_id="ssd8_1024_big",
-#         name="My SSD img_size=1024",
-#         model_path="weights/ssd8_1024_big.pth"
-#     )
-# )
-
-
-# def is_video(filename):
-#     return filename.lower().endswith((".mp4", ".avi", ".mkv", ".mov"))
-
-
-def run_video_inference(model, video_path):
-    cap = cv2.VideoCapture(video_path)
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    frame_idx = 0
-    results = {}
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        detections = model.predict(frame)
-        results[str(frame_idx)] = detections
-
-        frame_idx += 1
-
-    cap.release()
-    return results, fps
-
 
 @app.route('/results/<path:filename>')
 def results(filename):
@@ -152,6 +79,22 @@ def clear_queue():
         clear_all_tasks()
     )
 
+@app.post("/delete_files_with_results")
+def delete_files_with_results():
+
+    data = request.get_json()
+    print(data)
+
+    if not data:
+        return jsonify({"error": "No JSON body"}), 400
+
+    files = data.get("files")
+    # print(files)
+    result: dict = delete_files(files)
+
+    return jsonify(result)
+
+
 
 @app.route("/enqueue_task", methods=["POST"])
 def enqueue():
@@ -188,6 +131,96 @@ def enqueue():
     })
 
 
+
+# @app.route("/tasks_stream")
+# def tasks_stream():
+#     def generate():
+#         last_update = {}
+
+#         while True:
+#             db = get_db()
+#             rows = db.execute("""
+#                 SELECT id, file, model, progress, status, updated_at
+#                 FROM tasks
+#             """).fetchall()
+#             db.close()
+
+#             for row in rows:
+#                 task_id = row["id"]
+#                 updated_at = row["updated_at"]
+
+#                 # отправляем только если изменилось
+#                 if (
+#                     task_id not in last_update or
+#                     last_update[task_id] != updated_at
+#                 ):
+#                     last_update[task_id] = updated_at
+
+#                     yield f"data: {json.dumps({
+#                         "id": row["id"],
+#                         "file": row["file"],
+#                         "model": row["model"],
+#                         "progress": row["progress"],
+#                         "status": row["status"]
+#                     })}\n\n"
+
+#             time.sleep(0.5)
+
+#     return Response(
+#         generate(),
+#         mimetype="text/event-stream",
+#         headers={
+#             "Cache-Control": "no-cache",
+#             "X-Accel-Buffering": "no"
+#         }
+#     )
+
+
+@app.route("/tasks_stream")
+def tasks_stream():
+    def generate():
+        last_update = {}
+
+        while True:
+            db = get_db()
+            rows = db.execute("""
+                SELECT id, file, model, progress, status, updated_at
+                FROM tasks
+            """).fetchall()
+            db.close()
+
+            for row in rows:
+                id, file, model, progress, status, updated_at = row
+                task_id = id
+                updated_at = updated_at
+
+                # отправляем только если изменилось
+                if (
+                    task_id not in last_update or
+                    last_update[task_id] != updated_at
+                ):
+                    last_update[task_id] = updated_at
+
+                    yield f"data: {json.dumps({
+                        "id": id,
+                        "file": file,
+                        "model": model,
+                        "progress": progress,
+                        "status": status
+                    })}\n\n"
+
+            time.sleep(0.5)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @app.route("/get_models", methods=["POST"])
 def get_models():
     models = [{'id': model.id, 'name': model.name} for model in ModelRegistry.list()]
@@ -221,166 +254,54 @@ def get_image_result(image_name, model_id):
     return send_file(path, mimetype="application/json")
 
 
-@app.route("/run_inference_sse")
-def run_inference_sse():
-    task_id = request.args["task"]
-
-    def stream():
-        last = None
-        while True:
-            task = get_task(task_id)
-            print("task", task)
-            if not task:
-                break
-
-            if task != last:
-                yield f"data: {json.dumps(task)}\n\n"
-                last = task
-
-            if task["status"] in ("done", "stopped"):
-                yield f"data: {json.dumps({'type':'done'})}\n\n"
-                break
-
-            time.sleep(0.5)
-
-    return Response(stream(), mimetype="text/event-stream")
-
-
-
-
-
-# @app.post("/stop_task/<task_id>")
-# def stop_task(task_id):
-#     set_task_status(task_id, "stopped")
-#     return {"ok": True}
-
-
-
-
 # @app.route("/run_inference_sse")
 # def run_inference_sse():
-#     files = request.args.getlist("images")
-#     model_ids = request.args.getlist("models")
+#     task_id = request.args["task"]
 
-#     upload_dir = UPLOAD_FOLDER
+#     def stream():
+#         last = None
+#         while True:
+#             task = get_task(task_id)
+#             # print("task", task)
+#             if not task:
+#                 break
 
-#     def generate():
-#         # глобальный прогресс = file × model
-#         total_units = len(files) * len(model_ids)
-#         done_units = 0
+#             if task != last:
+#                 yield f"data: {json.dumps(task)}\n\n"
+#                 last = task
 
-#         # основной инференс
-#         for file in files:
-#             path = os.path.join(upload_dir, file)
-#             result_dir = os.path.join("results", file)
-#             os.makedirs(result_dir, exist_ok=True)
+#             if task["status"] in ("done", "stopped"):
+#                 yield f"data: {json.dumps({'type':'done'})}\n\n"
+#                 break
 
-#             for model_id in model_ids:
-#                 model = ModelRegistry.get(model_id)
+#             time.sleep(0.5)
 
-#                 # ---------- VIDEO ----------
-#                 if is_video(file):
-#                     cap = cv2.VideoCapture(path)
-#                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-#                     fps = cap.get(cv2.CAP_PROP_FPS)
-
-#                     frame_idx = 0
-#                     frames_result = {}
-
-#                     while cap.isOpened():
-#                         ret, frame = cap.read()
-#                         if not ret:
-#                             break
-
-#                         detections = model.predict(frame)
-#                         frames_result[str(frame_idx)] = detections
-
-#                         model_progress = (frame_idx + 1) / total_frames
-
-#                         progress_data = json.dumps({
-#                             "type": "progress",
-#                             "file": file,
-#                             "model": model_id,
-#                             "frame": frame_idx,
-
-#                             "model_progress": round(model_progress, 4),
-
-#                             "progress": round(done_units / total_units, 4)
-#                         })
-
-#                         yield f"data: {progress_data}\n\n"
-
-#                         frame_idx += 1
-
-#                     cap.release()
-
-#                     # сохранение видео-детекций
-#                     result_path = os.path.join(result_dir, f"{model_id}.json")
-#                     with open(result_path, "w") as f:
-#                         json.dump({
-#                             "media_type": "video",
-#                             "file": file,
-#                             "model_id": model_id,
-#                             "fps": fps,
-#                             "frames": frames_result
-#                         }, f, indent=2)
-
-#                     # файл для модели ЗАВЕРШЁН
-#                     done_units += 1
-
-#                     progress_data = json.dumps({
-#                         "type": "progress",
-#                         "file": file,
-#                         "model": model_id,
-#                         "model_progress": 1.0,
-#                         "progress": round(done_units / total_units, 4)
-#                     })
-
-#                     yield f"data: {progress_data}\n\n"
-
-#                 # ---------- IMAGE ----------
-#                 else:
-#                     detections = model.predict(path)
-
-#                     # сохранение image-детекций
-#                     result_path = os.path.join(result_dir, f"{model_id}.json")
-#                     with open(result_path, "w") as f:
-#                         json.dump({
-#                             "media_type": "image",
-#                             "file": file,
-#                             "model_id": model_id,
-#                             "detections": detections
-#                         }, f, indent=2)
-
-#                     done_units += 1
-
-#                     progress_data = json.dumps({
-#                         "type": "progress",
-#                         "file": file,
-#                         "model": model_id,
-#                         "model_progress": 1.0,
-#                         "progress": round(done_units / total_units, 4)
-#                     })
-
-#                     yield f"data: {progress_data}\n\n"
-
-#         yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-#     return Response(
-#         generate(),
-#         mimetype="text/event-stream",
-#         headers={
-#             "Cache-Control": "no-cache",
-#             "X-Accel-Buffering": "no"
-#         }
-#     )
+#     return Response(stream(), mimetype="text/event-stream")
 
 
 
 
+@app.post("/stop_task/<task_id>")
+def stop_task_post(task_id):
+    response = stop_task(task_id)
+    return jsonify(response)
 
 
 
+@app.route("/tasks")
+def tasks():
+    tasks = list_tasks()
+
+    return jsonify(tasks)
+
+
+@app.route("/set_r_to_q")
+def set_r_to_q_get():
+    response = set_r_to_q()
+    
+    return jsonify({
+        'set_r_to_q': response
+    })
 
 
 @app.route("/")
@@ -413,6 +334,25 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
-    # app.run(host="0.0.0.0.", port=5000)
+    init_db()
 
+    # данная проверка необходима, чтобы worker запускался только в основном потоке при запуске app с флагом debug=True
+    # Запускает первый процесс (контроллер)
+    # Потом делает "Restarting with stat"
+    # Запускает второй процесс (реальный сервер)
+    # if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+    #     print("Starting worker in PID", os.getpid())
+    #     threading.Thread(
+    #         target=worker_loop,
+    #         args=(executor,),
+    #         daemon=True
+    #     ).start()
+
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        print("Starting worker in PID", os.getpid())
+        threading.Thread(
+            target=worker_loop,
+            daemon=True
+        ).start()
+
+    app.run(debug=True)

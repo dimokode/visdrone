@@ -55,6 +55,8 @@
         <!-- <button onclick="deleteFiles()">Delete</button> -->
         <button onclick="startProcessing()">Обработка</button>
         <button onclick="clear_queue()">Очистить очередь</button>
+        <button onclick="set_r_to_q()">Set running to queued</button>
+        <button onclick="delete_files_with_results()">Delete</button>
 
 
             <h2>Filelist:</h2>
@@ -114,6 +116,8 @@
             // alert("DOM готов!");
             showModels();
             showFiles();
+            restoreTasks();
+            startGlobalSSE();
         });
     </script>
 </body>
